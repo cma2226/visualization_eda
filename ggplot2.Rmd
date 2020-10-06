@@ -1,0 +1,192 @@
+---
+title: "Visualization_EDA - ggplot2"
+author: "Caroline Andy"
+date: "10/5/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggridges)
+```
+
+We’ll be working with NOAA weather data, which is downloaded using rnoaa::meteo_pull_monitors function in the code chunk below; similar code underlies the weather dataset used elsewhere in the course. Because this process can take some time, I’ll cache the code chunk.
+
+```{r weather}
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728", "USC00519397", "USS0023B17S"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2017-01-01",
+    date_max = "2017-12-31") %>%
+  mutate(
+    name = recode(
+      id, 
+      USW00094728 = "CentralPark_NY", 
+      USC00519397 = "Waikiki_HA",
+      USS0023B17S = "Waterhole_WA"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) %>%
+  select(name, id, everything())
+```
+
+Now we will construct a basic scatterplot
+```{r scatterplot}
+ggplot(weather_df, aes(x = tmin, y = tmax))
+```
+
+Well, my “scatterplot” is blank. That’s because I’ve defined the data and the aesthetic mappings, but haven’t added any geoms: ggplot knows what data I want to plot and how I want to map variables, but not what I want to show. Below I add a geom to define my first scatterplot.
+
+```{r scatterplot_2}
+ggplot(weather_df, aes(x = tmin, y = tmax)) + 
+  geom_point()
+```
+
+Another formatting alternative:
+```{r scatterplot_3}
+weather_df %>%
+  ggplot(aes(x = tmin, y = tmax)) + 
+  geom_point()
+```
+
+Advanced Scatterplot
+
+The basic scatterplot gave some useful information – the variables are related roughly as we’d expect, and there aren’t any obvious outliers to investigate before moving on. We do, however, have other variables to learn about using additional aesthetic mappings.
+
+Let’s start with name, which I can incorporate using the color aesthetic:
+
+```{r advanced}
+ggplot(weather_df, aes(x = tmin, y = tmax)) + 
+  geom_point(aes(color = name))
+```
+
+Nice! We get colors and have a handly legend. Maybe next I’ll add a smooth curve and make the data points a bit transparent.
+
+```{r advanced_2}
+ggplot(weather_df, aes(x = tmin, y = tmax)) + 
+  geom_point(aes(color = name), alpha = .5) +
+  geom_smooth(se = FALSE)
+```
+
+The curve gives a sense of the relationship between variables, and the transparency shows where data are overlapping. I can’t help but notice, though, that the smooth curve is for all the data but the colors are only for the scatterplot. Turns out that this is due to where I defined the mappings. The X and Y mappings apply to the whole graphic, but color is currently geom-specific. Sometimes you want or need to do this, but for now I don’t like it. If I’m honest, I’m also having a hard time seeing everything on one plot, so I’m going to add facet based on name as well.
+
+```{r advanced_3}
+ggplot(weather_df, aes(x = tmin, y = tmax, color = name)) + 
+  geom_point(alpha = .5) +
+  geom_smooth(se = FALSE) + 
+  facet_grid(. ~ name)
+```
+
+Awesome! I’ve learned a lot about these data. However, the relationship between minimum and maximum temperature is now kinda boring, so I’d prefer something that shows the time of year. Also I want to learn about precipitation, so let’s do that.
+
+```{r advanced_4}
+ggplot(weather_df, aes(x = date, y = tmax, color = name)) + 
+  geom_point(aes(size = prcp), alpha = .5) +
+  geom_smooth(se = FALSE) + 
+  facet_grid(. ~ name)
+```
+
+Learning Assessment: Write a code chain that starts with weather_df; focuses only on Central Park, converts temperatures to Fahrenheit, makes a scatterplot of min vs. max temperature, and overlays a linear regression line (using options in geom_smooth())
+
+```{r learning_assessment}
+weather_df %>%
+  filter(name == "CentralPark_NY") %>%
+  mutate(
+    tmax_fahr = tmax * (9 / 5) + 32, 
+    tmin_fahr = tmin * (9 / 5) + 32) %>% 
+  ggplot(aes(x = tmin, y = tmax)) + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "lm", se = FALSE)
+```
+
+Odds and ends
+
+```{r odds_and_ends}
+ggplot(weather_df, aes(x = date, y = tmax, color = name)) + 
+  geom_smooth(se = FALSE) 
+```
+
+When you’re making a scatterplot with lots of data, there’s a limit to how much you can avoid overplotting using alpha levels and transparency. In these cases geom_hex(), geom_bin2d(), or geom_density2d() can be handy:
+
+```{r odds_and_ends_2}
+ggplot(weather_df, aes(x = tmax, y = tmin)) + 
+  geom_hex()
+```
+
+Univariate plots
+Histogram
+
+```{r hist}
+ggplot(weather_df, aes(x = tmax)) + 
+  geom_histogram()
+```
+
+You can play around with things like the bin width and set the fill color using an aesthetic mapping.
+
+``` {r, hist_2}
+ggplot(weather_df, aes(x = tmax, fill = name)) + 
+  geom_histogram(position = "dodge", binwidth = 2)
+```
+
+The position = "dodge" places the bars for each group side-by-side, but this gets sort of hard to understand. I often prefer density plots in place of histograms.
+
+```{r, dens}
+ggplot(weather_df, aes(x = tmax, fill = name)) + 
+  geom_density(alpha = .4, adjust = .5, color = "blue")
+```
+
+The adjust parameter in density plots is similar to the binwidth parameter in histograms, and it helps to try a few values. I set the transparency level to .4 to make sure all densities appear. You should also note the distinction between fill and color aesthetics here. You could facet by name as above but would have to ask if that makes comparisons easier or harder. Lastly, adding geom_rug() to a density plot can be a helpful way to show the raw data in addition to the density.
+
+Histograms and densities are one way of investigating univariate distributions; boxplots are another.
+
+```{r boxplot}
+ggplot(weather_df, aes(x = name, y = tmax)) + geom_boxplot()
+```
+
+Violin plots
+```{r violins}
+ggplot(weather_df, aes(x = name, y = tmax)) + 
+  geom_violin(aes(fill = name), alpha = .5) + 
+  stat_summary(fun = "median", color = "blue")
+```
+
+Ridge plots were the trendiest plot of 2017, and were a replacement for both boxplots and violin plots. They’re implemented in the ggridges package, and are nice if you have lots of categories in which the shape of the distribution matters.
+
+```{r ridge}
+ggplot(weather_df, aes(x = tmax, y = name)) + 
+  geom_density_ridges(scale = .85)
+```
+
+Learning assessment: Make plots that compare precipitation across locations. Try a histogram, a density plot, a boxplot, a violin plot, and a ridgeplot; use aesthetic mappings to make your figure readable.
+
+```{r leraning_assessment2}
+ggplot(weather_df, aes(x = prcp, fill = name)) +
+  geom_histogram(position = "dodge", binwidth = 50)
+
+ggplot(weather_df, aes(x = prcp)) + 
+  geom_density(aes(fill = name), alpha = .5) 
+
+ggplot(weather_df, aes(x = prcp, y = name)) + 
+  geom_density_ridges(scale = .85)
+
+ggplot(weather_df, aes(y = prcp, x = name)) + 
+  geom_boxplot() 
+```
+
+Saving plots
+```{r save}
+weather_plot = ggplot(weather_df, aes(x = tmin, y = tmax)) + 
+  geom_point(aes(color = name), alpha = .5) 
+
+ggsave("weather_plot.pdf", weather_plot, width = 8, height = 5)
+```
+
+Embedding plot in R Markdown document
+``` {r embedding}
+knitr::opts_chunk$set(
+  fig.width = 6,
+  fig.asp = .6,
+  out.width = "90%"
+)
+```
+
